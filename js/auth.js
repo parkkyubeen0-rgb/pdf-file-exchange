@@ -108,7 +108,6 @@ async function handleSignup() {
   const pwConfirm = document.getElementById('signupPasswordConfirm').value;
 
   if (!isValidEmail(email))       { showSignupError('유효한 이메일을 입력해주세요.'); return; }
-  if (_verifiedEmail !== email)   { showSignupError('이메일 인증을 완료해주세요.'); return; }
   if (!nickname)                  { showSignupError('닉네임을 입력해주세요.'); return; }
   if (nickname.length < 2)        { showSignupError('닉네임은 2자 이상이어야 합니다.'); return; }
   if (pw.length < 6)              { showSignupError('비밀번호는 6자 이상이어야 합니다.'); return; }
