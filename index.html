@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BookSwap — PDF 전자책 교환 서비스</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="css/style.css" />
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-storage.js"></script>
+</head>
+<body>
+
+  <!-- ===================== NAVBAR ===================== -->
+  <nav class="navbar" id="navbar" style="display:none;">
+    <div class="nav-inner">
+      <a class="nav-logo" href="#" onclick="showPage('explore')">
+        <i class="fas fa-book-open"></i> BookSwap
+      </a>
+      <div class="nav-links">
+        <a href="#" onclick="showPage('explore')" class="nav-link" data-page="explore">
+          <i class="fas fa-compass"></i> 탐색
+        </a>
+        <a href="#" onclick="showPage('library')" class="nav-link" data-page="library">
+          <i class="fas fa-bookmark"></i> 내 책장
+        </a>
+        <a href="#" onclick="showPage('exchange')" class="nav-link" data-page="exchange">
+          <i class="fas fa-exchange-alt"></i> 교환 현황
+        </a>
+        <a href="#" onclick="handleLogout()" class="nav-link nav-logout">
+          <i class="fas fa-sign-out-alt"></i> 로그아웃
+        </a>
+      </div>
+      <button class="hamburger" id="hamburger" onclick="toggleMobileMenu()">
+        <i class="fas fa-bars"></i>
+      </button>
+    </div>
+    <div class="mobile-menu" id="mobileMenu">
+      <a href="#" onclick="showPage('explore'); closeMobileMenu()">
+        <i class="fas fa-compass"></i> 탐색
+      </a>
+      <a href="#" onclick="showPage('library'); closeMobileMenu()">
+        <i class="fas fa-bookmark"></i> 내 책장
+      </a>
+      <a href="#" onclick="showPage('exchange'); closeMobileMenu()">
+        <i class="fas fa-exchange-alt"></i> 교환 현황
+      </a>
+      <a href="#" onclick="handleLogout(); closeMobileMenu()">
+        <i class="fas fa-sign-out-alt"></i> 로그아웃
+      </a>
+    </div>
+  </nav>
+
+  <!-- ===================== PAGES ===================== -->
+  <main id="appRoot">
+
+    <!-- ===== AUTH PAGE ===== -->
+    <div id="page-auth" class="page page-auth-wrapper active">
+      <div class="auth-container">
+        <div class="auth-brand">
+          <div class="auth-logo">
+            <i class="fas fa-book-open"></i>
+          </div>
+          <h1>BookSwap</h1>
+          <p>PDF 전자책을 교환하고 새로운 지식을 만나보세요</p>
+        </div>
+
+        <!-- Login Form -->
+        <div id="loginForm" class="auth-card">
+          <h2>로그인</h2>
+          <div class="form-group">
+            <label><i class="fas fa-envelope"></i> 이메일</label>
+            <input type="email" id="loginEmail" placeholder="이메일 주소 입력" />
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-lock"></i> 비밀번호</label>
+            <input type="password" id="loginPassword" placeholder="비밀번호 입력" />
+          </div>
+          <div id="loginError" class="error-msg" style="display:none;"></div>
+          <button class="btn btn-primary btn-full" onclick="handleLogin()">
+            <i class="fas fa-sign-in-alt"></i> 로그인
+          </button>
+          <p class="auth-switch">
+            계정이 없으신가요? <a href="#" onclick="switchToSignup()">회원가입하러 가기 →</a>
+          </p>
+          <div class="demo-info">
+            <p><strong>📌 서비스 안내</strong></p>
+            <p>회원가입 후 PDF를 등록하고 다른 사용자와 교환하세요.</p>
+            <p style="margin-top:4px;color:var(--primary);">PDF 파일은 이 브라우저에 안전하게 저장됩니다.</p>
+          </div>
+        </div>
+
+        <!-- Signup Form -->
+        <div id="signupForm" class="auth-card" style="display:none;">
+          <h2>회원가입</h2>
+          <div class="form-group">
+            <label><i class="fas fa-envelope"></i> 이메일</label>
+            <div class="input-with-btn">
+              <input type="email" id="signupEmail" placeholder="이메일 주소 입력" />
+              <button class="btn btn-secondary btn-sm" onclick="sendVerificationCode()">
+                인증 발송
+              </button>
+            </div>
+          </div>
+          <div class="form-group" id="verificationGroup" style="display:none;">
+            <label><i class="fas fa-key"></i> 인증번호</label>
+            <div class="input-with-btn">
+              <input type="text" id="verificationCode" placeholder="인증번호 6자리 입력" maxlength="6" />
+              <button class="btn btn-secondary btn-sm" onclick="verifyCode()">
+                확인
+              </button>
+            </div>
+            <span id="verifyStatus" class="verify-status"></span>
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-user"></i> 닉네임</label>
+            <input type="text" id="signupNickname" placeholder="사용할 닉네임 입력" />
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-lock"></i> 비밀번호</label>
+            <input type="password" id="signupPassword" placeholder="비밀번호 (6자 이상)" />
+          </div>
+          <div class="form-group">
+            <label><i class="fas fa-lock"></i> 비밀번호 확인</label>
+            <input type="password" id="signupPasswordConfirm" placeholder="비밀번호 다시 입력" />
+          </div>
+          <div id="signupError" class="error-msg" style="display:none;"></div>
+          <button class="btn btn-primary btn-full" onclick="handleSignup()">
+            <i class="fas fa-user-plus"></i> 회원가입 완료
+          </button>
+          <p class="auth-switch">
+            이미 계정이 있으신가요? <a href="#" onclick="switchToLogin()">로그인하러 가기 →</a>
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== EXPLORE PAGE ===== -->
+    <div id="page-explore" class="page" style="display:none;">
+      <div class="page-container">
+        <!-- Hero Section -->
+        <div class="explore-hero">
+          <h2>📚 전자책 탐색</h2>
+          <p>다른 사용자들의 PDF 전자책을 탐색하고 교환해보세요</p>
+        </div>
+
+        <!-- Search & Filter -->
+        <div class="search-bar-wrap">
+          <div class="search-bar">
+            <i class="fas fa-search"></i>
+            <input type="text" id="searchInput" placeholder="책 제목으로 검색..." oninput="filterBooks()" />
+          </div>
+          <div class="filter-badges">
+            <button class="badge-btn active" onclick="setFilter('all', this)">전체</button>
+            <button class="badge-btn" onclick="setFilter('available', this)">교환 가능</button>
+          </div>
+        </div>
+
+        <!-- Book Grid -->
+        <div id="bookGrid" class="book-grid">
+          <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+          </div>
+        </div>
+
+        <div id="noBooks" class="empty-state" style="display:none;">
+          <i class="fas fa-book-open"></i>
+          <h3>등록된 전자책이 없습니다</h3>
+          <p>아직 아무도 책을 등록하지 않았어요. 첫 번째로 책을 등록해보세요!</p>
+          <button class="btn btn-primary" onclick="showPage('library')">내 책장으로 가기</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== BOOK DETAIL PAGE ===== -->
+    <div id="page-detail" class="page" style="display:none;">
+      <div class="page-container">
+        <button class="btn-back" onclick="goBackToExplore()">
+          <i class="fas fa-arrow-left"></i> 목록으로 돌아가기
+        </button>
+        <div id="bookDetailContent"></div>
+      </div>
+    </div>
+
+    <!-- ===== LIBRARY PAGE ===== -->
+    <div id="page-library" class="page" style="display:none;">
+      <div class="page-container">
+        <div class="page-header">
+          <div>
+            <h2><i class="fas fa-bookmark"></i> 내 책장</h2>
+            <p id="librarySubtitle">내가 등록한 전자책 목록</p>
+          </div>
+          <button class="btn btn-primary" onclick="openBookModal()">
+            <i class="fas fa-plus"></i> 새 전자책 등록
+          </button>
+        </div>
+
+        <!-- My Books Grid -->
+        <div id="myBookGrid" class="book-grid">
+          <div class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+          </div>
+        </div>
+
+        <div id="noMyBooks" class="empty-state" style="display:none;">
+          <i class="fas fa-inbox"></i>
+          <h3>등록한 책이 없습니다</h3>
+          <p>첫 번째 전자책을 등록하고 교환을 시작해보세요!</p>
+          <button class="btn btn-primary" onclick="openBookModal()">
+            <i class="fas fa-plus"></i> 첫 책 등록하기
+          </button>
+        </div>
+
+        <!-- Accessed Books Section -->
+        <div id="accessedBooksSection" style="margin-top:48px;">
+          <h3 class="section-title"><i class="fas fa-unlock"></i> 교환으로 얻은 책</h3>
+          <div id="accessedBookGrid" class="book-grid">
+            <div class="loading-spinner">
+              <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+            </div>
+          </div>
+          <div id="noAccessedBooks" class="empty-state small" style="display:none;">
+            <p>교환을 통해 획득한 책이 없습니다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== EXCHANGE PAGE ===== -->
+    <div id="page-exchange" class="page" style="display:none;">
+      <div class="page-container">
+        <div class="page-header">
+          <div>
+            <h2><i class="fas fa-exchange-alt"></i> 교환 현황</h2>
+            <p>보낸 요청과 받은 요청을 관리하세요</p>
+          </div>
+        </div>
+
+        <div class="tab-container">
+          <div class="tabs">
+            <button class="tab active" onclick="switchTab('received', this)">
+              <i class="fas fa-inbox"></i> 받은 요청
+              <span id="receivedBadge" class="badge" style="display:none;"></span>
+            </button>
+            <button class="tab" onclick="switchTab('sent', this)">
+              <i class="fas fa-paper-plane"></i> 보낸 요청
+            </button>
+          </div>
+
+          <!-- Received Tab -->
+          <div id="tab-received" class="tab-content active">
+            <div id="receivedList" class="exchange-list">
+              <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+              </div>
+            </div>
+            <div id="noReceived" class="empty-state" style="display:none;">
+              <i class="fas fa-inbox"></i>
+              <h3>받은 요청이 없습니다</h3>
+              <p>다른 사용자의 교환 요청을 기다려보세요.</p>
+            </div>
+          </div>
+
+          <!-- Sent Tab -->
+          <div id="tab-sent" class="tab-content">
+            <div id="sentList" class="exchange-list">
+              <div class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i> 로딩 중...
+              </div>
+            </div>
+            <div id="noSent" class="empty-state" style="display:none;">
+              <i class="fas fa-paper-plane"></i>
+              <h3>보낸 요청이 없습니다</h3>
+              <p>관심 있는 책을 탐색하고 교환을 요청해보세요.</p>
+              <button class="btn btn-primary" onclick="showPage('explore')">책 탐색하러 가기</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- ===================== MODALS ===================== -->
+
+  <!-- Book Registration Modal -->
+  <div id="bookModal" class="modal-overlay" style="display:none;" onclick="handleModalOverlayClick(event, 'bookModal')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fas fa-book-medical"></i> 새 전자책 등록</h3>
+        <button class="modal-close" onclick="closeBookModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>책 제목 <span class="required">*</span></label>
+          <input type="text" id="bookTitle" placeholder="책 제목을 입력하세요" />
+        </div>
+        <div class="form-group">
+          <label>책 소개 <span class="required">*</span></label>
+          <textarea id="bookDesc" placeholder="책에 대한 간단한 소개를 입력하세요" rows="4"></textarea>
+        </div>
+        <div class="form-group">
+          <label>PDF 파일 <span class="required">*</span></label>
+          <div class="file-upload-area" id="fileUploadArea" onclick="document.getElementById('pdfFile').click()">
+            <i class="fas fa-file-pdf"></i>
+            <p id="fileUploadText">PDF 파일을 선택하거나 여기에 드래그하세요</p>
+            <span class="file-ext-note">.pdf 파일만 가능 · 최대 50MB</span>
+            <input type="file" id="pdfFile" accept=".pdf,application/pdf" style="display:none;" onchange="handleFileSelect(event)" />
+          </div>
+          <div id="filePreview" class="file-preview" style="display:none;"></div>
+        </div>
+        <!-- 업로드 진행률 -->
+        <div id="uploadProgressWrap" style="display:none;margin-top:4px;">
+          <div class="upload-progress-bar-bg">
+            <div class="upload-progress-bar" id="uploadProgressBar" style="width:0%"></div>
+          </div>
+          <p class="upload-progress-text" id="uploadProgressText">파일 저장 중... 0%</p>
+        </div>
+        <div class="storage-notice">
+          <i class="fas fa-info-circle"></i>
+          PDF 파일은 이 브라우저(IndexedDB)에 저장됩니다. 같은 브라우저에서만 다운로드 가능합니다.
+        </div>
+        <div id="bookModalError" class="error-msg" style="display:none;"></div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeBookModal()">취소</button>
+        <button class="btn btn-primary" onclick="submitBook()">
+          <i class="fas fa-check"></i> 등록 완료
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Book Detail Modal (for exchange) -->
+  <div id="exchangePickModal" class="modal-overlay" style="display:none;" onclick="handleModalOverlayClick(event, 'exchangePickModal')">
+    <div class="modal-box">
+      <div class="modal-header">
+        <h3><i class="fas fa-exchange-alt"></i> 교환할 내 책 선택</h3>
+        <button class="modal-close" onclick="closeExchangePickModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">상대방에게 제안할 내 책을 선택하세요.</p>
+        <div id="myBooksForExchange" class="exchange-pick-list"></div>
+        <div id="noMyBooksForExchange" class="empty-state small" style="display:none;">
+          <p>교환할 책이 없습니다. 먼저 내 책을 등록하세요.</p>
+          <button class="btn btn-primary btn-sm" onclick="closeExchangePickModal(); showPage('library');">책 등록하러 가기</button>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeExchangePickModal()">취소</button>
+        <button class="btn btn-primary" id="confirmExchangeBtn" onclick="confirmExchangeRequest()" disabled>
+          <i class="fas fa-paper-plane"></i> 교환 요청 보내기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast" style="display:none;"></div>
+
+  <!-- Loading Overlay -->
+  <div id="loadingOverlay" class="loading-overlay" style="display:none;">
+    <div class="loading-box">
+      <i class="fas fa-spinner fa-spin"></i>
+      <p id="loadingText">처리 중...</p>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/utils.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/books.js"></script>
+  <script src="js/exchange.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
