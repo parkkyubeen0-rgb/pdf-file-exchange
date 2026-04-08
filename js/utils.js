@@ -91,36 +91,138 @@ function generateVerificationCode() {
 }
 
 // API 헬퍼
-async function apiGet(table, params = {}) {
-  const query = new URLSearchParams({ limit: 200, ...params }).toString();
-  const res = await fetch(`tables/${table}?${query}`);
-  if (!res.ok) throw new Error(`GET ${table} failed`);
+const LOCAL_TABLE_PREFIX = 'bookswap_local_table_';
+const USE_FIRESTORE = true;
+
+function getLocalTableKey(table) {
+  return `${LOCAL_TABLE_PREFIX}${table}`;
+}
+
+function readLocalTable(table) {
+  try {
+    const raw = localStorage.getItem(getLocalTableKey(table));
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveLocalTable(table, payload) {
+  localStorage.setItem(getLocalTableKey(table), JSON.stringify(payload));
+}
+
+async function loadTableFromFile(table) {
+  const res = await fetch(`tables/${table}`);
+  if (!res.ok) return { data: [] };
   return res.json();
+}
+
+async function ensureLocalTable(table) {
+  let data = readLocalTable(table);
+  if (!data) {
+    data = await loadTableFromFile(table);
+    if (!data || !Array.isArray(data.data)) {
+      data = { data: [] };
+    }
+    saveLocalTable(table, data);
+  }
+  return data;
+}
+
+function matchesParams(item, params) {
+  return Object.keys(params).every(key => {
+    if (key === 'limit') return true;
+    return String(item[key]) === String(params[key]);
+  });
+}
+
+function getFirestoreCollection(table) {
+  if (!window.firebase || !firebase.firestore) {
+    throw new Error('Firebase Firestore is not available.');
+  }
+  return firebase.firestore().collection(table);
+}
+
+async function apiGet(table, params = {}) {
+  if (USE_FIRESTORE) {
+    try {
+      let collection = getFirestoreCollection(table);
+      let query = collection;
+      Object.keys(params).forEach(key => {
+        if (key === 'limit') return;
+        query = query.where(key, '==', params[key]);
+      });
+      if (params.limit) query = query.limit(Number(params.limit));
+      const snapshot = await query.get();
+      const rows = snapshot.docs.map(doc => doc.data());
+      return { data: rows };
+    } catch (e) {
+      console.warn('Firestore GET failed, falling back to local storage:', e);
+    }
+  }
+
+  const db = await ensureLocalTable(table);
+  let rows = (db.data || []).slice();
+  rows = rows.filter(item => matchesParams(item, params));
+  const limit = Number(params.limit || rows.length);
+  return { data: rows.slice(0, limit) };
 }
 
 async function apiPost(table, data) {
-  const res = await fetch(`tables/${table}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error(`POST ${table} failed`);
-  return res.json();
+  if (USE_FIRESTORE) {
+    try {
+      const collection = getFirestoreCollection(table);
+      const docId = data.id || firebase.firestore().collection(table).doc().id;
+      await collection.doc(docId).set({ ...data, id: docId });
+      return { ...data, id: docId };
+    } catch (e) {
+      console.warn('Firestore POST failed, falling back to local storage:', e);
+    }
+  }
+
+  const db = await ensureLocalTable(table);
+  const rows = db.data || [];
+  rows.push(data);
+  saveLocalTable(table, { data: rows });
+  return data;
 }
 
 async function apiPatch(table, id, data) {
-  const res = await fetch(`tables/${table}/${id}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  if (!res.ok) throw new Error(`PATCH ${table}/${id} failed`);
-  return res.json();
+  if (USE_FIRESTORE) {
+    try {
+      const docRef = getFirestoreCollection(table).doc(id);
+      await docRef.update(data);
+      const doc = await docRef.get();
+      return doc.data();
+    } catch (e) {
+      console.warn('Firestore PATCH failed, falling back to local storage:', e);
+    }
+  }
+
+  const db = await ensureLocalTable(table);
+  const rows = db.data || [];
+  const index = rows.findIndex(item => item.id === id);
+  if (index < 0) throw new Error(`Record not found: ${table}/${id}`);
+  rows[index] = { ...rows[index], ...data };
+  saveLocalTable(table, { data: rows });
+  return rows[index];
 }
 
 async function apiDelete(table, id) {
-  const res = await fetch(`tables/${table}/${id}`, { method: 'DELETE' });
-  if (!res.ok && res.status !== 204) throw new Error(`DELETE ${table}/${id} failed`);
+  if (USE_FIRESTORE) {
+    try {
+      await getFirestoreCollection(table).doc(id).delete();
+      return { success: true };
+    } catch (e) {
+      console.warn('Firestore DELETE failed, falling back to local storage:', e);
+    }
+  }
+
+  const db = await ensureLocalTable(table);
+  const rows = db.data || [];
+  const filtered = rows.filter(item => item.id !== id);
+  saveLocalTable(table, { data: filtered });
+  return { success: true };
 }
 
 // 모달 오버레이 클릭 핸들러
