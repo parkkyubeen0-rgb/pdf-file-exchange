@@ -54,10 +54,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') handleLogin();
   });
   document.getElementById('signupEmail').addEventListener('keydown', e => {
-    if (e.key === 'Enter') sendVerificationCode();
-  });
-  document.getElementById('verificationCode').addEventListener('keydown', e => {
-    if (e.key === 'Enter') verifyCode();
+    if (e.key === 'Enter') document.getElementById('signupNickname').focus();
   });
   document.getElementById('signupPassword').addEventListener('keydown', e => {
     if (e.key === 'Enter') document.getElementById('signupPasswordConfirm').focus();
